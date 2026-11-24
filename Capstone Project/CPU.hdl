@@ -1,0 +1,34 @@
+// CPU integration for the Hack computer.
+CHIP CPU {
+    IN inM[16], instruction[16], reset;
+    OUT outM[16], writeM, addressM[15], pc[15];
+
+    PARTS:
+    Mux16(a=instruction, b=aluOut, sel=instruction[15], out=aOrC);
+    ARegister(in=aOrC, load=loadA, out=aReg, out[0..14]=addressM);
+    And(a=instruction[15], b=instruction[5], out=cLoadA);
+    Not(in=instruction[15], out=isA);
+    Or(a=isA, b=cLoadA, out=loadA);
+
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=dReg);
+    Mux16(a=aReg, b=inM, sel=instruction[12], out=yIn);
+    ALU(x=dReg, y=yIn, zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6],
+        out=aluOut, zr=zr, ng=ng);
+    Or16(a=aluOut, b=false, out=outM);
+
+    And(a=instruction[15], b=instruction[3], out=writeM);
+    Not(in=ng, out=notNg);
+    Not(in=zr, out=notZr);
+    And(a=notNg, b=notZr, out=positive);
+    And(a=instruction[0], b=positive, out=jgt);
+    And(a=instruction[1], b=zr, out=jeq);
+    And(a=instruction[2], b=ng, out=jlt);
+    Or(a=jgt, b=jeq, out=geJump);
+    Or(a=geJump, b=jlt, out=jumpRequested);
+    And(a=instruction[15], b=jumpRequested, out=takeJump);
+
+    // A-register output remains the old address for this clock edge.
+    PC(in=aReg, load=takeJump, inc=true, reset=reset, out[0..14]=pc);
+}
